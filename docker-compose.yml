@@ -6,6 +6,9 @@ x-app: &app
     REDIS_URL: redis://redis:6379/0
     JWT_SECRET: ${JWT_SECRET:-local-folio-demo-change-me}
     SEED_DEMO: ${SEED_DEMO:-true}
+    RISK_STUCK_SECONDS: ${RISK_STUCK_SECONDS:-120}
+    RISK_RESCAN_SECONDS: ${RISK_RESCAN_SECONDS:-15}
+    RISK_QUEUE_GRACE_SECONDS: ${RISK_QUEUE_GRACE_SECONDS:-30}
     OPENBLAS_NUM_THREADS: 1
   volumes: [artifacts:/artifacts]
   depends_on:

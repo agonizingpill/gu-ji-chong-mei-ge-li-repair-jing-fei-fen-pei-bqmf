@@ -8,7 +8,7 @@
 
 1. 入藏册件：唯一馆藏号、书名、年代、纸张；追加病害观测保留历史。已出柜卷册需重新入柜才能录入病害。
 2. 隔离柜：同册只允许一个在柜位置，柜位满时拒绝入柜。出柜释放位置并保存出柜时间。
-3. 风险分级：Redis 排队、Python worker 执行决策树、主管复核；开工和交接只接受最新观测的复核。
+3. 风险分级：Redis 排队、Python worker 执行决策树、主管复核；开工和交接只接受最新观测的复核。worker 启动后周期找回漏算（queued 超龄）与卡死（running 超时）的分级单，沿用受理时的病害测量在原单上重算，不新增单据；条件更新保证并发接手只有一个成功，晚到的旧预测不覆盖接手后已复核的结论。
 4. 修复工序：方案依序建立工序依赖，资金未占用不得施工；前置工序未完成不可跳步；未施工方案撤销后可修订恢复。
 5. 专项经费：预算、占用、实付分别记录；行锁保障并发不超支；撤销返还占款，核销不得超过已占金额。
 6. 出柜借展：霉面积为 0、含水≤60%、最新低风险复核、工序及经费完成才准出柜；先交库房才准借展。
@@ -47,7 +47,7 @@ docker compose exec backend python -m src.seed
 
 `backend/src/algorithm.py` 以纸张含水、虫孔数、霉面积三个输入特征运行 `DecisionTreeClassifier(max_depth=5, min_samples_leaf=4, random_state=31)`。固定 seed 生成 600 条专家规则合成样本，按标签分层分出 450 训练 / 150 留出；worker 实算宏 F1、混淆矩阵（行实际 / 列预测，低中高顺序）与数据 SHA256，并写入数据库和共享 artifacts 卷。worker 不在 HTTP 请求内运行，Redis 队列和心跳文件均实际存在。
 
-合成样本用于内部可复现检查，不代表真实文保预测效果。现场主管保留最终复核权。观测不存在、未隔离、旧观测复核、预算不足、工序不完及病害未清均是独立业务拒绝条件。后台运行失败记录 `failed` 和原因，修复输入后重新提交分级。
+合成样本用于内部可复现检查，不代表真实文保预测效果。现场主管保留最终复核权。观测不存在、未隔离、旧观测复核、预算不足、工序不完及病害未清均是独立业务拒绝条件。后台运行失败记录 `failed` 和原因，修复输入后重新提交分级。分级单认领与落库均为条件更新：重试沿用原单原观测，已复核记录不被恢复扫描或晚到结果改动，分级页面以“已接手”标记被找回重算的单子。
 
 ## 技术结构
 
@@ -67,7 +67,7 @@ docker compose exec backend python -m src.seed
 
 ## 配置与开发
 
-`.env.example` 列出 COMPOSE_PROJECT_NAME、FRONTEND_PORT、BACKEND_PORT、DB_PORT、COMPOSE_SUBNET、JWT_SECRET、SEED_DEMO。`.env` 不纳入版本控制。`SEED_DEMO=true` 时启动自动导入；重复 seed 仅插入缺失自然键，不覆盖既有卷宗或重算经费。
+`.env.example` 列出 COMPOSE_PROJECT_NAME、FRONTEND_PORT、BACKEND_PORT、DB_PORT、COMPOSE_SUBNET、JWT_SECRET、SEED_DEMO，以及分级恢复扫描的 RISK_STUCK_SECONDS（running 卡死超时）、RISK_RESCAN_SECONDS（扫描间隔）、RISK_QUEUE_GRACE_SECONDS（queued 漏算宽限）。`.env` 不纳入版本控制。`SEED_DEMO=true` 时启动自动导入；重复 seed 仅插入缺失自然键，不覆盖既有卷宗或重算经费。
 
 开发后端可在 Python 3.12 虚拟环境安装 `backend/requirements.txt`，设置 DATABASE_URL、REDIS_URL、JWT_SECRET，在 backend 目录执行 `uvicorn src.app:app --reload`。原生前端无需 Node 构建，使用 Nginx `/api/` 代理后端，或重建 frontend 容器。
 

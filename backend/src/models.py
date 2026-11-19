@@ -53,6 +53,11 @@ class RiskAssessment(Base):
     review_note:Mapped[str]=mapped_column(String(200),default='')
     metrics:Mapped[dict]=mapped_column(JSON,default=dict)
     error:Mapped[str]=mapped_column(String(200),default='')
+    created:Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now)
+    claimed_by:Mapped[str|None]=mapped_column(String(60),nullable=True)
+    claimed_at:Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True)
+    attempts:Mapped[int]=mapped_column(Integer,default=0)
+    recovered:Mapped[bool]=mapped_column(Boolean,default=False)
 class Treatment(Base):
     __tablename__='treatments'
     __table_args__=(CheckConstraint('estimated_cents > 0'),)
